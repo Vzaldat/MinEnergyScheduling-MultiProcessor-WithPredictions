@@ -26,79 +26,84 @@ def BKP_alg(J, dt, alpha):
 
 def OptimalOnline(_J):
     all_idxs = sorted(_J.keys())
-    _, start, _ = _J[all_idxs[0]]
-    _, _, end = _J[all_idxs[-1]]
+    if not all_idxs:
+        return []
 
-    J_sim = {}
-    for idx in all_idxs:
-        w, r, d = _J[idx]
-        T = d - r
-        J_sim[idx] = (w, 0, T)
-    
+    # Determine the overall time range
+    min_release_time = min(job[1] for job in _J.values())
+    max_deadline = max(job[2] for job in _J.values())
+
+    current_time = min_release_time
     speeds_OO = []
-    J = {}
-    for t in range(start, end):
-        if t < all_idxs[-1]:
-            wt, rt, dt = J_sim[t + 1]
-            J[t] = (wt, rt, dt)
+    current_active_jobs = {}
+
+    # Create a copy of jobs for tracking remaining work
+    remaining_jobs_orig = copy.deepcopy(_J)
+
+    while current_time < max_deadline or current_active_jobs:
+        # 1. Add jobs whose release time is current_time
+        jobs_to_add = []
+        for job_id, job_data in list(remaining_jobs_orig.items()):
+            w, r, d = job_data
+            if r <= current_time and job_id not in current_active_jobs:
+                current_active_jobs[job_id] = [w, r, d] # Store as mutable list for remaining weight
+                del remaining_jobs_orig[job_id]
         
-        if (t >= all_idxs[-1]) and (not J):
-            return speeds_OO
-
-        idxs = sorted(J.keys())
-        J_sol = compute_optimal_instance(copy.deepcopy(J))
-        speed_list = compute_speed_per_integer_time(J_sol)
-
-        if len(speed_list) == 0:
-            speed = 0
-        else:
-            speed = speed_list[0]
-
-        work = speed * 1
-        
-        speeds_OO.append(speed)
-        
-        tota_weight = 0
-
-        jobs_involved = []
-        for idx in idxs:
-            weight_to_add, _, _ = J[idx]
-            tota_weight += weight_to_add
-            if tota_weight >= work:
-                jobs_involved.append(idx)
+        # 2. If no active jobs, append 0 speed and move to next release time
+        if not current_active_jobs:
+            next_release_time = float('inf')
+            for job_id, job_data in remaining_jobs_orig.items():
+                next_release_time = min(next_release_time, job_data[1])
+            
+            if next_release_time == float('inf'): # No more jobs to release
                 break
-            jobs_involved.append(idx)
-        # here we diminish the remaining work of the jobs involved
-        for job in jobs_involved:
-            job_weight, release_time, deadline = J[job]
+            
+            while current_time < next_release_time and current_time < max_deadline:
+                speeds_OO.append(Fraction(0, 1))
+                current_time += 1
+            continue
 
-            if job_weight > work:
-                del J[job]
-                J[job] = (job_weight - work, release_time, deadline)
-                if job_weight == work:
-                    del J[job]
-                work = 0
-            elif job_weight == work:
-                del J[job]
-                work = 0
+        # 3. Compute optimal instance for current active jobs
+        # Create a temporary job dictionary for compute_optimal_instance
+        temp_J = {}
+        for job_id, job_data in current_active_jobs.items():
+            temp_J[job_id] = tuple(job_data) # Convert to tuple for consistent input
+
+        J_sol_active = compute_optimal_instance(temp_J)
+        speed_list_active = compute_speed_per_integer_time(J_sol_active)
+
+        # Get the speed for the current time slot (duration 1 unit)
+        speed_for_slot = Fraction(0, 1)
+        if speed_list_active: # speed_list_active could be empty if compute_optimal_instance returns empty sol
+            # We need to consider how compute_speed_per_integer_time works. 
+            # It returns a list where index i represents speed for time [i, i+1)
+            # We are currently at time `current_time`, so we need the speed at the beginning of the optimal solution's timeline
+            speed_for_slot = speed_list_active[0]
+
+        speeds_OO.append(speed_for_slot)
+        work_done = speed_for_slot * 1  # Work done in this unit time slot
+
+        # 4. Deduct work from active jobs (greedy by earliest deadline first)
+        # Convert to list of tuples for sorting, then back to dict for modification
+        sorted_active_jobs = sorted(current_active_jobs.items(), key=lambda item: item[1][2]) # Sort by deadline
+        
+        jobs_to_remove = []
+        for job_id, job_data in sorted_active_jobs:
+            remaining_weight = job_data[0]
+            if work_done >= remaining_weight:
+                work_done -= remaining_weight
+                job_data[0] = Fraction(0, 1) # Mark as completed
+                jobs_to_remove.append(job_id)
             else:
-                del J[job]
-                work -= job_weight
+                job_data[0] -= work_done
+                work_done = Fraction(0, 1) # All work done for this slot consumed
+                break
+        
+        for job_id in jobs_to_remove:
+            del current_active_jobs[job_id]
 
-        # here I fix my instance in order to start from 0 and release times and deadlines should be diminished by one
-        job_keys = sorted(J.keys())
-        for job_key in job_keys:
-            w, r, d = J[job_key]
-            if r == 0:
-                del J[job_key]
-                J[job_key] = (w, r, d - 1)
-            else:
-                print("we have an error")
-
-
-
-        # I delete my previous solution
-        del J_sol
+        current_time += 1 # Move to the next time slot
+    
     return speeds_OO
 
 
@@ -155,9 +160,12 @@ def LAS(_J_prediction, _J_true, _epsilon, dt, alpha):
     
     # find epsilon such that ((1+epsilon)/(1 - epsilon))^alpha = 1 + _epsilon
     epsilon = scale_down_epsilon(_epsilon, alpha , 0.01)
-    
-    w, r, d = _J_prediction[1]
-    T = d-r
+
+    # Calculate overall time span T from prediction jobs
+    min_r_pred = min(job[1] for job in _J_prediction.values())
+    max_d_pred = max(job[2] for job in _J_prediction.values())
+    T = max_d_pred - min_r_pred
+
     T_prime = Fraction(1-epsilon, 1)*T
     J_true = copy.deepcopy(_J_true)
     
@@ -224,10 +232,55 @@ def DCRR(J, m):
         # The problem would be 
         sub_J = {}
         for job_id in job_list:
-            sub_J[job_id].append(J[job_id])
+            sub_J[job_id] = J[job_id]
         speed_i = Avg_rate(sub_J)
         speed.update(speed_i)
     return speed
+
+def DCRRLASOptimised(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold):
+    classes = classify_jobs(J_Predicted, pred=True)
+    processor_assignments = Pred_dispatch_jobs(classes, J_Predicted, m, confThreshold)
+
+    # Determine the maximum time horizon across all jobs from J_True and J_Predicted
+    max_overall_deadline = 0
+    if J_True:
+        max_overall_deadline = max(max_overall_deadline, max(job[2] for job in J_True.values()))
+    if J_Predicted:
+        max_overall_deadline = max(max_overall_deadline, max(job[2] for job in J_Predicted.values()))
+    
+    # Initialize combined speed list to zeros
+    combined_speed_list_length = int(ceil(float(max_overall_deadline) / dt))
+    combined_speed = np.zeros(combined_speed_list_length)
+
+    for i, job_list in processor_assignments.items():
+        if not job_list:
+            continue
+
+        sub_J_prediction = {}
+        # Assuming J contains the prediction with confidence, and we want to use it as true for LAS for now
+        sub_J_true = {}
+        for job_id in job_list:
+            # LAS expects (weight, release_time, deadline), so exclude confidence for prediction part
+            sub_J_prediction[job_id] = (J_Predicted[job_id][0], J_Predicted[job_id][1], J_Predicted[job_id][2])
+            # For simplicity, using predicted jobs as true jobs for LAS here. 
+            # A proper implementation might require a separate J_true input to DCRRLASOptimised.
+            sub_J_true[job_id] = (J_True[job_id][0], J_True[job_id][1], J_True[job_id][2])
+
+        # Call LAS for the subset of jobs assigned to this processor
+        # Note: LAS internally calculates T based on its _J_prediction input
+        processor_speed_list = LAS(sub_J_prediction, sub_J_true, _epsilon, dt, alpha)
+
+        # Accumulate speeds into the combined speed list
+        # Ensure the combined_speed array is large enough
+        if len(processor_speed_list) > len(combined_speed):
+            # Resize combined_speed if a processor's schedule extends further
+            temp_combined_speed = np.zeros(len(processor_speed_list))
+            temp_combined_speed[:len(combined_speed)] = combined_speed
+            combined_speed = temp_combined_speed
+        
+        combined_speed[:len(processor_speed_list)] += processor_speed_list
+        
+    return combined_speed
 
 """
 Comparisons can be done

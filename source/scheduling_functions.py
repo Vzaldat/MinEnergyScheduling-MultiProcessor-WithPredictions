@@ -43,24 +43,26 @@ def adjustInst(J, r, d):
     Output - Change job instance J erasing the interval [r, d] and modifying all the jobs that interfere
     """
     for k in list(J.keys()):
-        _,rk,dk=J[k]
-        if rk>=r and dk<=d:
-            del J[k]
-    
-    for k in J.keys():
         wk,rk,dk = J[k]
-        if rk <= r and dk >= d:
-            dk = dk - (d - r)
-        elif rk <= r and dk >= r and dk <= d:
-            dk = r
-        elif rk >= r and rk <= d and dk >= d:
-            rk = r
-            dk = dk - (d - r)
-        elif rk >= d and dk >= d:
-            rk = rk - (d - r)
-            dk = dk - (d - r)
         
-        J[k] = (wk, rk, dk)
+        new_rk = rk
+        new_dk = dk
+
+        if rk <= r and dk >= d:
+            new_dk = dk - (d - r)
+        elif rk <= r and dk >= r and dk <= d:
+            new_dk = r
+        elif rk >= r and rk <= d and dk >= d:
+            new_rk = r
+            new_dk = dk - (d - r)
+        elif rk >= d and dk >= d:
+            new_rk = rk - (d - r)
+            new_dk = dk - (d - r)
+
+        if new_dk <= new_rk:
+            del J[k] # Remove job if its interval becomes invalid or zero
+        else:
+            J[k] = (wk, new_rk, new_dk)
 
 def computeEnergyIntegerSpeedList(speed_list, alpha):
 
@@ -250,7 +252,7 @@ def compute_speed_per_integer_time(J_Sol):
     ids = sorted(J_Sol.keys())
 
     _, speed, start_of_time, _ = J_Sol[ids[0]]
-    _, _, _, end_of_time = J_Sol[ids[1]]
+    _, _, _, end_of_time = J_Sol[ids[1]] if len(J_Sol.keys()) > 2 else J_Sol[ids[-1]]
 
     start_of_time = int(start_of_time)
     end_of_time = int(end_of_time)
@@ -451,7 +453,7 @@ def speed_dict_to_list(speed_dict, dt, mul_factor):
         start, end = interval
         speed = speed_dict[interval]
         while t < end:
-            s.append(speed)
+            s.append(float(speed)) # Convert Fraction to float here
             t+=dt
     return s
 
@@ -611,22 +613,29 @@ def Pred_dispatch_jobs(Classes_kh, J, m, confThreshold):
     # Process each class
     # For loop ordering for tuples - can be a problem
     for class_key, job_ids in Classes_kh.items():
-        # _, _ = class_key
         
         if not job_ids:
             continue
         
-        class1 = sorted(job_ids, key=lambda job_id: J[job_id][3] > confThreshold)
-        class0 = sorted(job_ids, key=lambda job_id: J[job_id][3] <= confThreshold)
-        # Sort jobs by release time for consistent ordering
-        # sorted_jobs = sorted(job_ids, key=lambda job_id: J[job_id][1])  # Sort by release time
+        high_confidence_jobs = []
+        low_confidence_jobs = []
 
-        for i, job_id in enumerate(class1):
+        for job_id in job_ids:
+            if J[job_id][3] > confThreshold:
+                high_confidence_jobs.append(job_id)
+            else:
+                low_confidence_jobs.append(job_id)
+        
+        # Sort high and low confidence jobs by release time for consistent dispatch order
+        high_confidence_jobs = sorted(high_confidence_jobs, key=lambda job_id: J[job_id][1])
+        low_confidence_jobs = sorted(low_confidence_jobs, key=lambda job_id: J[job_id][1])
+
+        for i, job_id in enumerate(high_confidence_jobs):
             processor_id = i % m
             processor_assignments[processor_id].append(job_id)
         
-        for i, job_id in enumerate(class0):
+        for i, job_id in enumerate(low_confidence_jobs):
             processor_id = m - 1 - (i % m)
             processor_assignments[processor_id].append(job_id)
-    
+
     return processor_assignments
