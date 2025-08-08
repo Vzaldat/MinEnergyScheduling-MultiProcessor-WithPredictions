@@ -3,7 +3,7 @@ import copy
 from fractions import Fraction
 import numpy as np
 from math import e
-from scheduling_algorithms import BKP_alg, OptimalOnline, Avg_rate, Optimal_Alg, LAS, DCRR, DCRRLASOptimised
+from source.scheduling_algorithms import BKP_alg, OptimalOnline, Avg_rate, Optimal_Alg, LAS, DCRR, swp_m
 
 class TestSchedulingAlgorithms(unittest.TestCase):
     
@@ -440,8 +440,8 @@ class TestSchedulingAlgorithms(unittest.TestCase):
             self.assertIsInstance(speed, Fraction)
             self.assertGreaterEqual(speed, 0)
 
-    def test_DCRRLASOptimised_basic(self):
-        """Test DCRRLASOptimised algorithm basic functionality"""
+    def test_swp_m_basic(self):
+        """Test swp_m algorithm basic functionality"""
         J_True = {
             1: (12, 0, 5),
             2: (15, 2, 8),
@@ -461,7 +461,7 @@ class TestSchedulingAlgorithms(unittest.TestCase):
         alpha = 2
         confThreshold = 0.5
 
-        speed_list = DCRRLASOptimised(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold)
+        speed_list = swp_m(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold)
 
         self.assertIsInstance(speed_list, np.ndarray)
         self.assertGreater(len(speed_list), 0)

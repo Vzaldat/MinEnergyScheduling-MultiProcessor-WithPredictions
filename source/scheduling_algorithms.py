@@ -237,7 +237,7 @@ def DCRR(J, m):
         speed.update(speed_i)
     return speed
 
-def DCRRLASOptimised(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold):
+def swp_m(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold):
     classes = classify_jobs(J_Predicted, pred=True)
     processor_assignments = Pred_dispatch_jobs(classes, J_Predicted, m, confThreshold)
 
@@ -263,7 +263,7 @@ def DCRRLASOptimised(J_True, J_Predicted, m, _epsilon, dt, alpha, confThreshold)
             # LAS expects (weight, release_time, deadline), so exclude confidence for prediction part
             sub_J_prediction[job_id] = (J_Predicted[job_id][0], J_Predicted[job_id][1], J_Predicted[job_id][2])
             # For simplicity, using predicted jobs as true jobs for LAS here. 
-            # A proper implementation might require a separate J_true input to DCRRLASOptimised.
+            # A proper implementation might require a separate J_true input to swp_m.
             sub_J_true[job_id] = (J_True[job_id][0], J_True[job_id][1], J_True[job_id][2])
 
         # Call LAS for the subset of jobs assigned to this processor

@@ -6,7 +6,7 @@ import numpy as np
 from math import isclose, ceil, floor, e
 
 # Import the functions to test
-from scheduling_functions import *
+from source.scheduling_functions import *
 
 class TestSchedulingFunctions(unittest.TestCase):
     
