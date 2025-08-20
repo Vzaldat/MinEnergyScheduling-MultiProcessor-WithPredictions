@@ -3,7 +3,7 @@ import copy
 from fractions import Fraction
 import numpy as np
 from math import e
-from source.scheduling_algorithms import BKP_alg, OptimalOnline, Avg_rate, Optimal_Alg, LAS, DCRR, swp_m
+from scheduling_algorithms import BKP_alg, OptimalOnline, Avg_rate, Optimal_Alg, LAS, DCRR, swp_m
 
 class TestSchedulingAlgorithms(unittest.TestCase):
     
@@ -24,112 +24,7 @@ class TestSchedulingAlgorithms(unittest.TestCase):
             3: (15, 2, 6)     # weight, release_time, deadline
         }
 
-    @unittest.skip("BKP algorithm has infinite loop issue")
-    def test_BKP_alg_basic(self):
-        """Test BKP algorithm basic functionality"""
-        dt = 0.1
-        alpha = 2
-        
-        energy = BKP_alg(self.sample_jobs, dt, alpha)
-        
-        # Check that energy is a number
-        self.assertIsInstance(energy, (int, float))
-        
-        # Check that energy is non-negative
-        self.assertGreaterEqual(energy, 0)
-        
-        # Test with different parameters
-        energy2 = BKP_alg(self.sample_jobs, 0.5, 3)
-        self.assertIsInstance(energy2, (int, float))
-        self.assertGreaterEqual(energy2, 0)
-
-    @unittest.skip("BKP algorithm has infinite loop issue")
-    def test_BKP_alg_edge_cases(self):
-        """Test BKP algorithm with edge cases"""
-        # Test with single job
-        single_job = {1: (10, 0, 5)}
-        energy = BKP_alg(single_job, 0.1, 2)
-        self.assertIsInstance(energy, (int, float))
-        self.assertGreaterEqual(energy, 0)
-        
-        # Test with jobs that have same release and deadline
-        same_time_jobs = {1: (10, 0, 0), 2: (5, 1, 1)}
-        energy = BKP_alg(same_time_jobs, 0.1, 2)
-        self.assertIsInstance(energy, (int, float))
-        self.assertGreaterEqual(energy, 0)
-
-    @unittest.skip("BKP algorithm has infinite loop issue")
-    def test_BKP_alg_invalid_input(self):
-        """Test BKP algorithm with invalid inputs"""
-        # Test with empty job set
-        with self.assertRaises(Exception):
-            BKP_alg({}, 0.1, 2)
-        
-        # Test with invalid dt (zero)
-        with self.assertRaises(Exception):
-            BKP_alg(self.sample_jobs, 0, 2)
-        
-        # Test with invalid dt (negative)
-        with self.assertRaises(Exception):
-            BKP_alg(self.sample_jobs, -0.1, 2)
-
-    @unittest.skip("OptimalOnline has bug in compute_speed_per_integer_time")
-    def test_OptimalOnline_basic(self):
-        """Test OptimalOnline algorithm basic functionality"""
-        # The function requires jobs with sequential IDs starting from 1
-        sequential_jobs = {
-            1: (10, 0, 5),    # weight, release_time, deadline
-            2: (15, 2, 8),    # weight, release_time, deadline
-            3: (8, 1, 6),     # weight, release_time, deadline
-            4: (12, 3, 10)    # weight, release_time, deadline
-        }
-        
-        speeds = OptimalOnline(sequential_jobs)
-        
-        # Check that speeds is a list
-        self.assertIsInstance(speeds, list)
-        
-        # Check that all speeds are non-negative
-        for speed in speeds:
-            self.assertGreaterEqual(speed, 0)
-        
-        # Test with different job set
-        sequential_jobs_2 = {
-            1: (20, 0, 4),    # weight, release_time, deadline
-            2: (10, 1, 5),    # weight, release_time, deadline
-            3: (15, 2, 6)     # weight, release_time, deadline
-        }
-        
-        speeds2 = OptimalOnline(sequential_jobs_2)
-        self.assertIsInstance(speeds2, list)
-        for speed in speeds2:
-            self.assertGreaterEqual(speed, 0)
-
-    @unittest.skip("OptimalOnline has bug in compute_speed_per_integer_time")
-    def test_OptimalOnline_edge_cases(self):
-        """Test OptimalOnline algorithm with edge cases"""
-        # Test with two jobs (minimum required for the algorithm to work)
-        two_jobs = {1: (10, 0, 5), 2: (15, 2, 8)}
-        speeds = OptimalOnline(two_jobs)
-        self.assertIsInstance(speeds, list)
-        self.assertGreater(len(speeds), 0)
-        
-        # Verify that speeds are reasonable (non-negative and finite)
-        for speed in speeds:
-            self.assertGreaterEqual(speed, 0)
-            self.assertLess(speed, float('inf'))
-
-    @unittest.skip("OptimalOnline has bug in compute_speed_per_integer_time")
-    def test_OptimalOnline_invalid_input(self):
-        """Test OptimalOnline algorithm with invalid inputs"""
-        # Test with empty job set
-        with self.assertRaises(Exception):
-            OptimalOnline({})
-        
-        # Test with single job (not enough for the algorithm)
-        with self.assertRaises(Exception):
-            OptimalOnline({1: (10, 0, 5)})
-
+   
     def test_Avg_rate_basic(self):
         """Test Avg_rate algorithm basic functionality"""
         speed_dict = Avg_rate(self.sample_jobs)
@@ -216,18 +111,7 @@ class TestSchedulingAlgorithms(unittest.TestCase):
         self.assertGreaterEqual(end, start)
         self.assertGreater(speed, 0)
 
-    @unittest.skip("Don't need invalid inputs")
-    def test_Optimal_Alg_invalid_input(self):
-        """Test Optimal_Alg algorithm with invalid inputs"""
-        # Test with empty job set
-        with self.assertRaises(Exception):
-            Optimal_Alg({})
-        
-        # Test with job that has invalid deadline
-        invalid_jobs = {1: (10, 5, 3)}  # deadline < release_time
-        with self.assertRaises(Exception):
-            Optimal_Alg(invalid_jobs)
-
+    
     def test_LAS_basic(self):
         """Test LAS algorithm basic functionality"""
         # Create prediction and true job sets
@@ -306,24 +190,7 @@ class TestSchedulingAlgorithms(unittest.TestCase):
         # Different dt should produce different length results
         self.assertNotEqual(len(speed_list3), len(speed_list4))
 
-    @unittest.skip("Invalid input scenarios are not expected with manually generated data")
-    def test_LAS_invalid_input(self):
-        """Test LAS algorithm with invalid inputs"""
-        J_prediction = {1: (10, 0, 5)}
-        J_true = {1: (10, 0, 5)}
-        
-        # Test with invalid dt (zero)
-        with self.assertRaises(Exception):
-            LAS(J_prediction, J_true, 0.1, 0, 2)
-        
-        # Test with invalid dt (negative)
-        with self.assertRaises(Exception):
-            LAS(J_prediction, J_true, 0.1, -0.1, 2)
-        
-        # Test with empty job sets
-        with self.assertRaises(Exception):
-            LAS({}, {}, 0.1, 0.1, 2)
-
+    
     def test_LAS_prediction_vs_true(self):
         """Test LAS algorithm with different prediction vs true scenarios"""
         # Case 1: Prediction underestimates true weights

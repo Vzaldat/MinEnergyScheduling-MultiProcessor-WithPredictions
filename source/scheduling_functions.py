@@ -42,27 +42,31 @@ def adjustInst(J, r, d):
     Input - Job instance is given and an interval [r, d]
     Output - Change job instance J erasing the interval [r, d] and modifying all the jobs that interfere
     """
-    for k in list(J.keys()):
-        wk,rk,dk = J[k]
-        
-        new_rk = rk
-        new_dk = dk
+    for key in list(J.keys()):
+        _,rk,dk = J[key]
+        if rk>=r and dk<=d:
+            del J[key]
+    # now we need to delete the interval [r,d] of the instance
+    for key in J.keys():
+        wk,rk,dk = J[key]
+        # case 1: interval which completely containes the critical interval
+        if rk<=r and dk>=d:
+            dk = dk - (d-r)
+        # case 2: the interval ends into the ctitical interval
+        elif rk<=r and dk>=r and dk<=d:
+            dk = r
+        # case 3: the interval starts into the critical interval
+        elif rk>=r and rk<=d and dk>=d:
+            rk = r
+            dk = dk -(d-r)
+        # case 4: the interval starts and ends outdside the critical interval but on the right ---> thus, we have to move starts and end to the left
+        elif  rk>=d and dk>=d:
+            rk = rk - (d-r)
+            dk = dk - (d-r)
 
-        if rk <= r and dk >= d:
-            new_dk = dk - (d - r)
-        elif rk <= r and dk >= r and dk <= d:
-            new_dk = r
-        elif rk >= r and rk <= d and dk >= d:
-            new_rk = r
-            new_dk = dk - (d - r)
-        elif rk >= d and dk >= d:
-            new_rk = rk - (d - r)
-            new_dk = dk - (d - r)
+        # now we will update the interval's release time and deadline
+        J[key] = (wk, rk, dk)
 
-        if new_dk <= new_rk:
-            del J[k] # Remove job if its interval becomes invalid or zero
-        else:
-            J[k] = (wk, new_rk, new_dk)
 
 def computeEnergyIntegerSpeedList(speed_list, alpha):
 

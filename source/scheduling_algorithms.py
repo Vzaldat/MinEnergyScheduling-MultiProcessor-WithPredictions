@@ -10,6 +10,9 @@ from math import isclose, ceil, floor
 from decimal import *
 from fractions import *
 
+
+#CHECK THESE TWO
+
 def BKP_alg(J, dt, alpha):
     key = sorted(J.keys())
     min_time = J[key[0]][1]
@@ -21,89 +24,89 @@ def BKP_alg(J, dt, alpha):
         density = densest_interval_BKP(J, t, dt)
         energy += dt * ((e * density) ** alpha)
         t += dt
-    
     return energy
 
 def OptimalOnline(_J):
     all_idxs = sorted(_J.keys())
-    if not all_idxs:
-        return []
+    _, start, _ = _J[all_idxs[0]]
+    _, _, end = _J[all_idxs[-1]]
 
-    # Determine the overall time range
-    min_release_time = min(job[1] for job in _J.values())
-    max_deadline = max(job[2] for job in _J.values())
+    # we will change the release times/deadlines to simulate that they arrive one by one
+    J_sim = {}
+    for idx in all_idxs:
+        w, r, d = _J[idx]
+        T = d - r
+        J_sim[idx] = (w, 0, T)
 
-    current_time = min_release_time
     speeds_OO = []
-    current_active_jobs = {}
+    J = {}
+    for t in range(start, end):
+        if t < all_idxs[-1]:
+            wt, rt, dt = J_sim[t + 1]
+            J[t] = (wt, rt, dt)
 
-    # Create a copy of jobs for tracking remaining work
-    remaining_jobs_orig = copy.deepcopy(_J)
+        # here we will handle the case where there is no job left and no jobs will arrive in the future
+        if (t >= all_idxs[-1]) and (not J):
+            return speeds_OO
 
-    while current_time < max_deadline or current_active_jobs:
-        # 1. Add jobs whose release time is current_time
-        jobs_to_add = []
-        for job_id, job_data in list(remaining_jobs_orig.items()):
-            w, r, d = job_data
-            if r <= current_time and job_id not in current_active_jobs:
-                current_active_jobs[job_id] = [w, r, d] # Store as mutable list for remaining weight
-                del remaining_jobs_orig[job_id]
-        
-        # 2. If no active jobs, append 0 speed and move to next release time
-        if not current_active_jobs:
-            next_release_time = float('inf')
-            for job_id, job_data in remaining_jobs_orig.items():
-                next_release_time = min(next_release_time, job_data[1])
-            
-            if next_release_time == float('inf'): # No more jobs to release
+        # (1) we will compute the optimal instance of this
+        idxs = sorted(J.keys())
+        J_sol = compute_optimal_instance(copy.deepcopy(J))
+        # solution
+        speed_list = compute_speed_per_integer_time(J_sol)
+
+        # here we handle the case where the first job has zero weight
+        if len(speed_list)== 0:
+            speed  = 0
+        else:
+            speed = speed_list[0]
+
+        # since we refer to one time unit
+        work = speed * 1
+        # now we find how much wwork should we delete from the instance
+        speeds_OO.append(speed)
+
+        # here we find which jobs are run during the interval (t,t+1)
+        tota_weight = 0
+        jobs_involved = []
+        for idx in idxs:
+            weight_to_add, _, _ = J[idx]
+            tota_weight += weight_to_add
+            if tota_weight >= work:
+                jobs_involved.append(idx)
                 break
-            
-            while current_time < next_release_time and current_time < max_deadline:
-                speeds_OO.append(Fraction(0, 1))
-                current_time += 1
-            continue
+            jobs_involved.append(idx)
+        # here we diminish the remaining work of the jobs involved
+        for job in jobs_involved:
+            job_weight, release_time, deadline = J[job]
 
-        # 3. Compute optimal instance for current active jobs
-        # Create a temporary job dictionary for compute_optimal_instance
-        temp_J = {}
-        for job_id, job_data in current_active_jobs.items():
-            temp_J[job_id] = tuple(job_data) # Convert to tuple for consistent input
-
-        J_sol_active = compute_optimal_instance(temp_J)
-        speed_list_active = compute_speed_per_integer_time(J_sol_active)
-
-        # Get the speed for the current time slot (duration 1 unit)
-        speed_for_slot = Fraction(0, 1)
-        if speed_list_active: # speed_list_active could be empty if compute_optimal_instance returns empty sol
-            # We need to consider how compute_speed_per_integer_time works. 
-            # It returns a list where index i represents speed for time [i, i+1)
-            # We are currently at time `current_time`, so we need the speed at the beginning of the optimal solution's timeline
-            speed_for_slot = speed_list_active[0]
-
-        speeds_OO.append(speed_for_slot)
-        work_done = speed_for_slot * 1  # Work done in this unit time slot
-
-        # 4. Deduct work from active jobs (greedy by earliest deadline first)
-        # Convert to list of tuples for sorting, then back to dict for modification
-        sorted_active_jobs = sorted(current_active_jobs.items(), key=lambda item: item[1][2]) # Sort by deadline
-        
-        jobs_to_remove = []
-        for job_id, job_data in sorted_active_jobs:
-            remaining_weight = job_data[0]
-            if work_done >= remaining_weight:
-                work_done -= remaining_weight
-                job_data[0] = Fraction(0, 1) # Mark as completed
-                jobs_to_remove.append(job_id)
+            if job_weight > work:
+                del J[job]
+                J[job] = (job_weight - work, release_time, deadline)
+                if job_weight == work:
+                    del J[job]
+                work = 0
+            elif job_weight == work:
+                del J[job]
+                work = 0
             else:
-                job_data[0] -= work_done
-                work_done = Fraction(0, 1) # All work done for this slot consumed
-                break
-        
-        for job_id in jobs_to_remove:
-            del current_active_jobs[job_id]
+                del J[job]
+                work -= job_weight
 
-        current_time += 1 # Move to the next time slot
-    
+        # here I fix my instance in order to start from 0 and release times and deadlines should be diminished by one
+        job_keys = sorted(J.keys())
+        for job_key in job_keys:
+            w, r, d = J[job_key]
+            if r == 0:
+                del J[job_key]
+                J[job_key] = (w, r, d - 1)
+            else:
+                print("we have an error")
+
+
+
+        # I delete my previous solution
+        del J_sol
     return speeds_OO
 
 
@@ -112,6 +115,8 @@ def Avg_rate(J):
     #                                                           key--> job id
     #                                                           value--> (job weight, release time, deadline) as a tuple
     # output: the speed_list dictionary of this algorithm
+    if not J:
+        return {}
     ids = sorted(J.keys())
     _, _start, _ = J[ids[0]]
     _, _, _end = J[ids[-1]]
@@ -194,13 +199,12 @@ def LAS(_J_prediction, _J_true, _epsilon, dt, alpha):
         processing_interval = (start_processing, end_processing)
         feasible_interval = (start_prime, end_prime)
         if w_true <= w_pred:
-            speed_to_finish_between_start_and_end = Fraction(w_true, end_processing-start_processing)
+            speed_to_finish_between_start_and_end = Fraction(w_true, end_processing-start_processing) 
             speed_not_robust[processing_interval] = speed_to_finish_between_start_and_end
         else:
             speed_not_robust[processing_interval] = speed_pred
             w_exceeding = w_true - w_pred
-            speed_to_smear_out[feasible_interval] = Fraction(w_exceeding, end_prime-start_prime)
-        
+            speed_to_smear_out[feasible_interval] = Fraction(w_exceeding, end_prime-start_prime) 
     
     # at this point we will use speed_to_smear out in order to 
     # augment the speed in the speed_not_robust dictionary and
@@ -228,12 +232,30 @@ def DCRR(J, m):
     processor_assignments = dispatch_jobs(classes, J, m)
     speed = {}
     for i, job_list in processor_assignments.items():
+        if not job_list:
+            continue
         # For each job list, do AVR
         # The problem would be 
         sub_J = {}
         for job_id in job_list:
             sub_J[job_id] = J[job_id]
         speed_i = Avg_rate(sub_J)
+        speed.update(speed_i)
+    return speed
+
+def yds_M(J, m):
+    classes = classify_jobs(J)
+    processor_assignments = dispatch_jobs(classes, J, m)
+    speed = {}
+    for i, job_list in processor_assignments.items():
+        if not job_list:
+            continue
+        # For each job list, do AVR
+        # The problem would be 
+        sub_J = {}
+        for job_id in job_list:
+            sub_J[job_id] = J[job_id]
+        speed_i, _ = Optimal_Alg(sub_J)
         speed.update(speed_i)
     return speed
 

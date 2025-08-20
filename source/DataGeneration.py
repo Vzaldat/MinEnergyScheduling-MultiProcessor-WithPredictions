@@ -10,12 +10,12 @@ def jobsWithoutPred(n, T):
         J[i] = (weight, arrival, deadline)
     return J
 
-def jobsWithPred(n, T, confThres=0.5):
+def jobsWithPred(n, T, D, confThres=0.5):
     J = {}
     for i in range(n):
-        weight = random.randint(0, 1000)
-        arrival = random.randint(0, 3 * T // 4)
-        deadline = random.randint(arrival, T)
+        weight = random.randint(1, 50)
+        arrival = random.randint(1, T - D - 1)
+        deadline = arrival + D
         
         # Generate prediction confidence from a normal distribution
         # Using confThres as mean and a calculated std_dev to allow for variation
